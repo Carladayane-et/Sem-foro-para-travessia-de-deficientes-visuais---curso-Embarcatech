@@ -1,0 +1,91 @@
+#include <stdio.h>
+#include "pico/stdlib.h"
+
+const int verde = 10;
+const int amarelo = 11;
+const int vermelho = 12;
+const int botao = 16;
+const int pedestre = 18;
+const int buzina = 3;
+
+const unsigned long tempoVerde = 8000;
+const unsigned long tempoAmarelo = 2000;
+const unsigned long tempoVermelho = 10000;
+
+unsigned long tempoUltimaAcao = 0;
+bool pedestreAtivo = false;
+
+int main() {
+    gpio_init(verde);
+    gpio_set_dir(verde, GPIO_OUT);
+    gpio_init(amarelo);
+    gpio_set_dir(amarelo, GPIO_OUT);
+    gpio_init(vermelho);
+    gpio_set_dir(vermelho, GPIO_OUT);
+    gpio_init(botao);
+    gpio_set_dir(botao, GPIO_IN);
+    gpio_pull_up(botao);
+    gpio_init(pedestre);
+    gpio_set_dir(pedestre, GPIO_OUT);
+    gpio_init(buzina);
+    gpio_set_dir(buzina, GPIO_OUT);
+
+    while (true) {
+        bool botaoPressionado = gpio_get(botao) == 0;
+
+        if (botaoPressionado && !pedestreAtivo) {
+            pedestreAtivo = true;
+            acionarSemaforoPedestre();
+        } else if (!pedestreAtivo) {
+            executarSemaforoNormal();
+        }
+
+        sleep_ms(50);
+    }
+}
+
+void executarSemaforoNormal() {
+    unsigned long tempoAtual = to_ms_since_boot(get_absolute_time());
+    unsigned long intervalo = tempoAtual - tempoUltimaAcao;
+
+    if (intervalo < tempoVerde) {
+        gpio_put(verde, true);
+        gpio_put(amarelo, false);
+        gpio_put(vermelho, false);
+    } else if (intervalo < tempoVerde + tempoAmarelo) {
+        gpio_put(verde, false);
+        gpio_put(amarelo, true);
+        gpio_put(vermelho, false);
+    } else if (intervalo < tempoVerde + tempoAmarelo + tempoVermelho) {
+        gpio_put(verde, false);
+        gpio_put(amarelo, false);
+        gpio_put(vermelho, true);
+    } else {
+        tempoUltimaAcao = to_ms_since_boot(get_absolute_time());
+    }
+
+    gpio_put(pedestre, false);
+    gpio_put(buzina, false);
+}
+
+void acionarSemaforoPedestre() {
+    gpio_put(verde, false);
+    gpio_put(amarelo, true);
+    gpio_put(vermelho, false);
+    sleep_ms(5000);
+
+    gpio_put(amarelo, false);
+    gpio_put(vermelho, true);
+    gpio_put(pedestre, true);
+
+    for (int i = 0; i < 100; i++) {
+        gpio_put(buzina, true);
+        sleep_ms(150);
+        gpio_put(buzina, false);
+    }
+
+    gpio_put(pedestre, false);
+    gpio_put(buzina, false);
+    pedestreAtivo = false;
+    tempoUltimaAcao = to_ms_since_boot(get_absolute_time());
+}
